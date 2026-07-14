@@ -11,7 +11,7 @@ try:
     with open("system_prompt.txt", "r", encoding="utf-8") as f:
         SYSTEM_PROMPT = f.read()
 except:
-    SYSTEM_PROMPT = "你是一个有用的AI助手。"
+    SYSTEM_PROMPT = "你是可爱的Claude。"
 
 # 两个独立的密钥
 GATEWAY_KEY = os.getenv("GATEWAY_KEY", "")          # 客户端连接网关用
