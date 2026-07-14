@@ -3,7 +3,6 @@ import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-import asyncio
 
 app = FastAPI()
 
@@ -14,7 +13,9 @@ try:
 except:
     SYSTEM_PROMPT = "你是一个有用的AI助手。"
 
-API_KEY = os.getenv("API_KEY", "")
+# 两个独立的密钥
+GATEWAY_KEY = os.getenv("GATEWAY_KEY", "")          # 客户端连接网关用
+UPSTREAM_API_KEY = os.getenv("UPSTREAM_API_KEY", "") # 转发给上游AI用
 API_BASE_URL = os.getenv("API_BASE_URL", "https://openrouter.ai/api/v1")
 
 class ChatRequest(BaseModel):
@@ -25,24 +26,23 @@ class ChatRequest(BaseModel):
 @app.get("/v1/models")
 async def get_models(request: Request):
     auth = request.headers.get("X-Gateway-Key")
-    if auth != API_KEY:
+    if auth != GATEWAY_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
     async with httpx.AsyncClient() as client:
         resp = await client.get(
             f"{API_BASE_URL}/models",
-            headers={"Authorization": f"Bearer {API_KEY}"}
+            headers={"Authorization": f"Bearer {UPSTREAM_API_KEY}"}  # 用上游密钥
         )
         return resp.json()
 
 @app.post("/v1/chat/completions")
 async def chat(request: Request, body: ChatRequest):
     auth = request.headers.get("X-Gateway-Key")
-    if auth != API_KEY:
+    if auth != GATEWAY_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
     
     # 注入人设
     if body.messages and body.messages[0].get("role") == "system":
-        # 如果已经有system消息，替换
         body.messages[0]["content"] = SYSTEM_PROMPT + "\n\n" + body.messages[0]["content"]
     else:
         body.messages.insert(0, {"role": "system", "content": SYSTEM_PROMPT})
@@ -54,7 +54,7 @@ async def chat(request: Request, body: ChatRequest):
                     "POST",
                     f"{API_BASE_URL}/chat/completions",
                     headers={
-                        "Authorization": f"Bearer {API_KEY}",
+                        "Authorization": f"Bearer {UPSTREAM_API_KEY}",  # 用上游密钥
                         "Content-Type": "application/json"
                     },
                     json=body.dict()
@@ -65,7 +65,7 @@ async def chat(request: Request, body: ChatRequest):
             resp = await client.post(
                 f"{API_BASE_URL}/chat/completions",
                 headers={
-                    "Authorization": f"Bearer {API_KEY}",
+                    "Authorization": f"Bearer {UPSTREAM_API_KEY}",  # 用上游密钥
                     "Content-Type": "application/json"
                 },
                 json=body.dict()
